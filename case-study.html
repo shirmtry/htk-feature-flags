@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>HTK Feature Flags — Case Study</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 15mm; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Inter", Arial, sans-serif;
+    color: #15202f;
+    font-size: 10pt;
+    line-height: 1.52;
+  }
+  h1, h2, h3 { color: #0b1220; margin: 0; }
+  h1 { font-size: 29pt; letter-spacing: -0.5pt; line-height: 1.1; }
+  h2 {
+    font-size: 14.5pt;
+    margin: 0 0 9pt;
+    padding-bottom: 5pt;
+    border-bottom: 2px solid #0ea5e9;
+  }
+  h3 { font-size: 10.8pt; margin: 11pt 0 4pt; }
+  p { margin: 0 0 6.5pt; }
+  ul, ol { margin: 0 0 7pt 15pt; padding: 0; }
+  li { margin-bottom: 2.5pt; }
+  code {
+    font-family: "Cascadia Mono", Consolas, monospace;
+    background: #eef4fa;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 8.8pt;
+  }
+  .sheet { page-break-after: always; min-height: 254mm; }
+  .sheet:last-child { page-break-after: auto; }
+  .cover {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 258mm;
+  }
+  .eyebrow {
+    font-size: 8.8pt;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #0284c7;
+    font-weight: 700;
+  }
+  .cover-rule { width: 64pt; height: 4pt; background: #0ea5e9; margin: 17pt 0; }
+  .cover-sub { font-size: 12.5pt; color: #334155; max-width: 135mm; }
+  .meta { font-size: 10pt; color: #475569; }
+  .meta strong { color: #0b1220; }
+  .arch {
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 7.9pt;
+    line-height: 1.45;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 9pt 11pt;
+    white-space: pre;
+    margin: 7pt 0 9pt;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 5pt 0 9pt; font-size: 9.1pt; }
+  th, td { text-align: left; padding: 4pt 6pt; border-bottom: 1px solid #dbe3ee; vertical-align: top; }
+  th { background: #f1f5f9; color: #0b1220; }
+  .note {
+    background: #f0f9ff;
+    border-left: 3px solid #0ea5e9;
+    padding: 6.5pt 9pt;
+    margin: 7pt 0;
+    color: #0f2a43;
+  }
+  .warn {
+    background: #fff7ed;
+    border-left: 3px solid #f59e0b;
+    padding: 6.5pt 9pt;
+    margin: 7pt 0;
+    color: #57350a;
+  }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 13pt; }
+  .kpi { border: 1px solid #dbe3ee; border-radius: 6px; padding: 7pt 9pt; }
+  .kpi b { display: block; font-size: 15pt; color: #0284c7; }
+  .kpi span { font-size: 8.4pt; color: #475569; }
+  .small { font-size: 8.6pt; color: #475569; }
+  .flow {
+    border: 1px solid #dbe3ee;
+    border-radius: 6px;
+    padding: 7pt 9pt;
+    margin: 6pt 0;
+    background: #fbfdff;
+  }
+  .flow b { color: #0369a1; }
+  .tag {
+    display: inline-block;
+    font-size: 8.2pt;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+    border-radius: 999px;
+    padding: 1px 7px;
+    margin-right: 4pt;
+    background: #f0f9ff;
+  }
+</style>
+</head>
+<body>
+
+<section class="sheet cover">
+  <div>
+    <div class="eyebrow">Case Study · Feature Delivery</div>
+    <div class="cover-rule"></div>
+    <h1>HTK Feature Flags</h1>
+    <p class="cover-sub">
+      Bật tính năng theo đúng người, đúng tỷ lệ — với quyết định có thể giải thích,
+      cập nhật không ghi đè và audit đầy đủ.
+    </p>
+    <p style="margin-top:14pt">
+      <span class="tag">deterministic rollout</span>
+      <span class="tag">SDK cache + ETag</span>
+      <span class="tag">optimistic versioning</span>
+      <span class="tag">admin / viewer</span>
+    </p>
+  </div>
+  <div>
+    <div class="two">
+      <div class="kpi"><b>0,0039 ms</b><span>p95 evaluate trên production · 2.000 vòng</span></div>
+      <div class="kpi"><b>14/14</b><span>unit test pass trên PGlite</span></div>
+    </div>
+    <p class="meta" style="margin-top:15pt">
+      <strong>Tác giả:</strong> HTK 0396241674<br />
+      <strong>Ngày:</strong> 11/11/2026<br />
+      <strong>Live:</strong> htk-feature-flags.vercel.app<br />
+      <strong>GitHub:</strong> github.com/shirmtry/htk-feature-flags
+    </p>
+    <p class="small" style="margin-top:8pt">
+      Số liệu đo trên Vercel production ngày 11/11/2026; phương pháp và giới hạn được nêu ở trang 5.
+    </p>
+  </div>
+</section>
+
+<section class="sheet">
+  <h2>1. Bài toán</h2>
+  <p>
+    Một đội sản phẩm SaaS muốn phát hành tính năng theo từng nhóm người dùng thay vì deploy lại toàn bộ
+    hệ thống. Họ cần bật một luồng checkout mới cho khoảng một phần ba người dùng, mở báo cáo beta cho
+    vài khách hàng doanh nghiệp, và tắt ngay một banner bảo trì khi sự cố kết thúc. Công cụ hiện tại là
+    một bảng boolean theo tên flag, sửa trực tiếp trong database.
+  </p>
+
+  <h3>Bốn cách một feature flag thất bại</h3>
+  <ul>
+    <li><strong>Rollout không ổn định:</strong> dùng random mỗi request khiến cùng một người lúc thấy tính năng, lúc không; bug trở nên không tái hiện được.</li>
+    <li><strong>Không giải thích được quyết định:</strong> người dùng hỏi “vì sao tôi không thấy tính năng?”, đội vận hành chỉ có một boolean và không biết flag nào, nhánh nào quyết định.</li>
+    <li><strong>Ghi đè im lặng:</strong> hai admin cùng mở form, người lưu sau xoá thay đổi của người trước mà không ai biết.</li>
+    <li><strong>SDK gọi database mỗi request:</strong> tăng latency và tạo phụ thuộc cứng vào DB; khi DB chậm, toàn bộ app chậm theo.</li>
+  </ul>
+
+  <h3>Yêu cầu đặt ra</h3>
+  <table>
+    <tr><th>Yêu cầu</th><th>Tiêu chí kiểm chứng</th></tr>
+    <tr><td>Targeting đúng và ổn định</td><td>Cùng user, cùng flag → cùng bucket qua nhiều lần evaluate và deploy</td></tr>
+    <tr><td>Giải thích được</td><td>Mỗi kết quả trả về <code>reason</code> và <code>bucket</code></td></tr>
+    <tr><td>Không ghi đè</td><td>Hai lần PATCH cùng version: lần sau nhận 409</td></tr>
+    <tr><td>SDK nhẹ</td><td>Cache TTL, dedupe request, ETag 304, fallback dữ liệu cũ</td></tr>
+    <tr><td>Phân quyền</td><td>Viewer không sửa được qua UI lẫn API</td></tr>
+    <tr><td>Audit và đo lường</td><td>Mọi write có log; benchmark p95 &lt; 50 ms</td></tr>
+  </table>
+
+  <h3>Phạm vi</h3>
+  <p>
+    Trong phạm vi: flag boolean, rollout theo phần trăm, target user/tenant, CRUD có version, SDK cache,
+    audit, benchmark, hai vai trò. Ngoài phạm vi: flag đa biến thể (string/JSON), experiment assignment
+    theo metric, streaming invalidation và multi-region replication. Việc chọn phạm vi hẹp giúp hoàn
+    thiện đúng các hành vi khó: tính ổn định của bucket, xung đột ghi và cache.
+  </p>
+
+  <div class="warn">
+    <strong>Ràng buộc triển khai:</strong> không có credential cho Railway/Fly.io, nên toàn bộ backend chạy
+    trong Next.js API routes trên Vercel. Hệ quả là persistence dùng PGlite + snapshot Vercel Blob thay vì
+    một Postgres quản lý; trade-off này được phân tích ở trang 5.
+  </div>
+</section>
+
+<section class="sheet">
+  <h2>2. Giải pháp</h2>
+
+  <h3>Kiến trúc</h3>
+  <div class="arch">Browser (admin / viewer)
+   │  session cookie httpOnly
+   ▼
+Next.js App Router trên Vercel (Node runtime)
+   ├─ /api/auth/*            scrypt + sessions
+   ├─ /api/flags             CRUD + zod + optimistic version
+   ├─ /api/evaluate          evaluateFlag(flag, context)
+   ├─ /api/sdk/flags         snapshot + ETag / 304
+   ├─ /api/flags/benchmark   SDK cache + p50/p95
+   └─ /api/metrics, audit    số liệu từ DB + request_logs
+        │
+        ▼
+   PGlite (PostgreSQL WASM)
+        │ JSON snapshot, ETag HEAD
+        ▼
+   Vercel Blob (private)</div>
+
+  <p>
+    UI và API nằm trong cùng một deploy Next.js. Mỗi request API mở PGlite trong lambda, đọc snapshot mới
+    nhất từ Blob khi ETag thay đổi, rồi phục vụ. Sau thao tác ghi, state được ghi lại Blob; local dùng
+    PGlite file-backed tại <code>./.data/pg</code>.
+  </p>
+
+  <h3>Mô hình dữ liệu</h3>
+  <table>
+    <tr><th>Bảng</th><th>Cột chính</th><th>Vì sao</th></tr>
+    <tr><td><code>users</code></td><td>email unique, password_hash, <code>role</code> ∈ admin/viewer</td><td>Phân quyền ở server, không tin UI</td></tr>
+    <tr><td><code>flags</code></td><td>key unique, enabled, rollout_percentage 0–100, target_users/tenants jsonb, version</td><td>Một nguồn sự thật cho targeting và version</td></tr>
+    <tr><td><code>audit_logs</code></td><td>actor, action, detail jsonb, created_at</td><td>Giải thích ai đổi gì, khi nào</td></tr>
+    <tr><td><code>benchmark_runs</code></td><td>rounds, p50_ms, p95_ms, cache_hits/misses</td><td>Đo thật, hiển thị lại trên dashboard</td></tr>
+    <tr><td><code>request_logs</code></td><td>path, status, duration_ms</td><td>Metric request và đếm traffic evaluate/SDK</td></tr>
+    <tr><td><code>rate_limits</code></td><td>key, window_start, count</td><td>Giới hạn endpoint nhạy cảm, không persist</td></tr>
+  </table>
+
+  <h3>Luồng evaluate</h3>
+  <div class="arch">evaluateFlag(flag, { userId, tenantId }):
+  if !flag.enabled                      -> off,  reason "disabled"
+  if userId ∈ flag.target_users         -> on,   reason "user_target"
+  if tenantId ∈ flag.target_tenants     -> on,   reason "tenant_target"
+  if rollout > 0 and có identity:
+      bucket = fnv1a(`${flag.key}:${identity}`) % 100
+      -> bucket < rollout ? on : off, reason "rollout"
+  else                                  -> off,  reason "default"</div>
+
+  <p>
+    Hàm evaluate là hàm thuần, không truy cập DB, dùng chung cho API, SDK và benchmark. Kết quả trả về
+    gồm <code>key</code>, <code>value</code>, <code>reason</code>, <code>bucket</code> và
+    <code>version</code> để giải thích từng quyết định.
+  </p>
+</section>
+
+<section class="sheet">
+  <h2>3. Giải pháp (tiếp)</h2>
+
+  <h3>Cập nhật không ghi đè</h3>
+  <div class="flow">
+    <b>1.</b> Form gửi PATCH kèm <code>version</code> đã đọc. &nbsp;
+    <b>2.</b> SQL: <code>update ... where id = $1 and version = $2 ... returning *</code>.<br />
+    <b>3.</b> 1 dòng trả về → version tăng 1, ghi audit diff. &nbsp;
+    <b>4.</b> 0 dòng → <code>409 version_conflict</code> kèm version hiện tại.<br />
+    <b>5.</b> UI giữ nguyên dữ liệu người dùng đã nhập, tải version mới, cho phép gửi lại.
+  </div>
+  <p>
+    Đây là optimistic locking, không phải khoá bi quan: người dùng không giữ transaction khi đang điền
+    form. Đổi lại, xung đột hiếm gặp sẽ trả lỗi rõ ràng thay vì âm thầm mất dữ liệu. Unique index trên
+    <code>key</code> chặn trùng tên ở tầng database; API kiểm tra trước để trả thông báo thân thiện và vẫn
+    bắt lỗi 23505 làm lớp bảo vệ cuối.
+  </p>
+
+  <h3>SDK cache và ETag</h3>
+  <div class="flow">
+    <b>Cold:</b> loader chạy → snapshot lưu cache + <code>fetchedAt</code>.<br />
+    <b>Hit:</b> trong TTL 30 s → trả cache, tăng <code>hits</code>.<br />
+    <b>Dedupe:</b> nhiều lời gọi đồng thời khi cache trống dùng chung một <code>inflight</code> promise.<br />
+    <b>Lỗi refresh:</b> loader throw sau TTL → trả snapshot cũ với <code>source: "stale"</code>.<br />
+    <b>ETag:</b> <code>/api/sdk/flags</code> trả <code>ETag</code> theo count + max version;
+    <code>If-None-Match</code> khớp → <code>304</code>, không truyền body.
+  </div>
+  <p>
+    Client SDK không tự gọi database. Endpoint snapshot vẫn cần session, nhưng ETag biến các lần poll
+    không đổi thành response rỗng. Trong benchmark, client được warm một lần rồi chạy 2.000 vòng: 2.000
+    cache hit, 1 miss, 1 load. Con số này chứng minh cache hoạt động, không phải tuyên bố về tốc độ mạng.
+  </p>
+
+  <h3>Phân quyền và audit</h3>
+  <p>
+    Đăng ký mới tạo role <code>viewer</code>; admin được seed sẵn. UI ẩn nút ghi với viewer, nhưng quyết
+    định thật nằm ở API: mọi POST/PATCH/DELETE, audit và benchmark kiểm tra <code>role === 'admin'</code>
+    và trả 403. Mỗi thao tác ghi gọi một hàm audit chung, lưu actor, action và diff tóm tắt (ví dụ
+    <code>rollout: [20, 40]</code>). Nhờ vậy audit không phụ thuộc việc UI có gọi đúng hay không.
+  </p>
+
+  <h3>Benchmark có phạm vi rõ ràng</h3>
+  <p>
+    Endpoint benchmark chỉ admin, 3 lần/phút. Nó đọc flags một lần (đo <code>scanMs</code>), warm SDK
+    client, rồi chạy N vòng evaluate trên 20 context. Mỗi vòng được đo bằng <code>performance.now()</code>;
+    kết quả p50/p95 lưu vào <code>benchmark_runs</code> và hiển thị lại. Ngân sách đặt ở 50 ms để có biên
+    an toàn lớn hơn nhiều so với kỳ vọng, và số đo thực tế thấp hơn khoảng bốn bậc.
+  </p>
+
+  <h3>Các quyết định kỹ thuật chính</h3>
+  <ul>
+    <li><strong>Một hàm evaluate dùng chung</strong> thay vì logic riêng cho API và SDK — tránh lệch kết quả.</li>
+    <li><strong>Version tường minh trong payload</strong> thay vì ETag cho update — dễ hiểu, dễ test, lỗi 409 rõ ràng.</li>
+    <li><strong>jsonb cho target list</strong> — đủ linh hoạt cho demo, vẫn truy vấn được bằng Postgres.</li>
+    <li><strong>FNV-1a 32-bit trên key + identity</strong> — ổn định, không phụ thuộc thư viện, tách bucket giữa các flag.</li>
+    <li><strong>Snapshot Blob có ETag</strong> — giảm tải đọc và tránh restore lặp lại khi state không đổi.</li>
+    <li><strong>Audit ngay trong transaction nghiệp vụ</strong> — không có cửa sổ “đã sửa nhưng chưa log”.</li>
+  </ul>
+</section>
+
+<section class="sheet">
+  <h2>4. Đo lường, trade-off và điểm chưa hoàn thiện</h2>
+
+  <h3>Số liệu thật (production Vercel, 11/11/2026)</h3>
+  <table>
+    <tr><th>Phép đo</th><th>Kết quả</th><th>Cách đo</th></tr>
+    <tr><td>Evaluate p50 / p95</td><td><strong>0,0023 ms / 0,0039 ms</strong></td><td>2.000 vòng × 5 flags = 10.000 evaluation, SDK cache warm</td></tr>
+    <tr><td>Cache</td><td>2.000 hit / 1 miss / 1 load</td><td>Cùng lần benchmark; TTL 60 s</td></tr>
+    <tr><td>Đọc flags từ PGlite</td><td>0,792 ms</td><td><code>scanMs</code> trước vòng lặp</td></tr>
+    <tr><td>Ngân sách p95</td><td>&lt; 50 ms → pass</td><td>Biên an toàn theo yêu cầu</td></tr>
+    <tr><td>Unit test</td><td>14/14 pass</td><td><code>npm test</code>, PGlite thật</td></tr>
+    <tr><td>ETag</td><td>200 → 304</td><td><code>If-None-Match</code> với ETag trả về</td></tr>
+    <tr><td>Xung đột version</td><td>409</td><td>PATCH lần hai với version cũ</td></tr>
+    <tr><td>Viewer ghi</td><td>403</td><td>POST/PATCH/DELETE/audit/benchmark</td></tr>
+    <tr><td>Benchmark lần 4/phút</td><td>429</td><td>Rate limit 3/phút/user</td></tr>
+    <tr><td>Request latency</td><td>p50 77 ms · p95 6.910 ms</td><td>10 mẫu, gồm cold start — không đủ để kết luận SLA</td></tr>
+  </table>
+  <p class="small">
+    Benchmark cố ý chỉ đo phần evaluate sau khi snapshot đã nằm trong cache. Nó không đo network, cold start,
+    hay thời gian ghi Blob. Các con số request latency lấy từ <code>request_logs</code> và bị chi phối bởi
+    request đầu tiên khởi tạo PGlite, nên được báo cáo kèm số mẫu thay vì trình bày như SLA.
+  </p>
+
+  <h3>Trade-off đã chấp nhận</h3>
+  <div class="two">
+    <div class="flow">
+      <b>PGlite + Blob thay Postgres quản lý</b><br />
+      Ưu: deploy một chạm, SQL thật, migration từ zero, không cần credential dịch vụ ngoài.<br />
+      Nhược: single-writer, last-write-wins nếu nhiều lambda ghi sát nhau; cold start đọc snapshot.<br />
+      Khi nào đổi: ghi đồng thời hoặc cần replica — chuyển sang Postgres/Neon.
+    </div>
+    <div class="flow">
+      <b>SDK cache TTL thay push/streaming</b><br />
+      Ưu: đơn giản, chịu lỗi, ETag giảm payload, fallback stale khi loader lỗi.<br />
+      Nhược: flag mới có thể trễ tối đa 30 s ở client đang cache.<br />
+      Khi nào đổi: cần kill-switch tức thời — thêm SSE/WebSocket hoặc pub/sub.
+    </div>
+  </div>
+  <div class="flow">
+    <b>Rate limit ephemeral thay Redis</b><br />
+    Ưu: không thêm hạ tầng, đủ chặn thao tác lặp trong một instance.<br />
+    Nhược: reset khi cold start, không chia sẻ giữa các instance.<br />
+    Đây là giới hạn có ý thức, không phải bảo vệ chống abuse cấp production.
+  </div>
+
+  <h3>Điểm chưa hoàn thiện</h3>
+  <ul>
+    <li>Chưa có version history đầy đủ của flag; audit lưu diff tóm tắt, không lưu snapshot trước/sau toàn bộ.</li>
+    <li>Chưa test tải nhiều instance ghi đồng thời; kịch bản last-write-wins mới được phân tích, chưa đo.</li>
+    <li>Request latency p95 6,9 s trên 10 mẫu là cold start; chưa đo p95 ổn định sau khi warm.</li>
+    <li>Chưa có soft delete/khôi phục flag; xoá là vĩnh viễn và được ghi audit.</li>
+    <li>SDK mới test fallback stale ở unit test, chưa có bài đo mất mạng kéo dài trên client thật.</li>
+  </ul>
+</section>
+
+<section class="sheet">
+  <h2>5. Bài học</h2>
+  <p>
+    Bài học lớn nhất là tách <em>quyết định</em> khỏi <em>hạ tầng</em>. Hàm evaluate thuần không biết
+    database hay HTTP tồn tại; nhờ vậy có thể test 10.000 lần trong vài mili-giây, dùng lại cho API, SDK và
+    benchmark, và giải thích từng kết quả bằng <code>reason</code>. Khi logic đã đúng, phần còn lại chỉ là
+    chọn cách lưu và cách cache.
+  </p>
+  <p>
+    Bài học thứ hai là tính ổn định quan trọng hơn tính ngẫu nhiên. Random theo request tạo ra trải nghiệm
+    không tái hiện được; hash theo key + identity biến rollout thành một tập người dùng xác định, có thể
+    kiểm chứng và giải thích. Đổi tỷ lệ chỉ dịch ngưỡng, không xáo trộn những người đã bật.
+  </p>
+  <p>
+    Bài học thứ ba là optimistic locking cần được thiết kế ở UI, không chỉ ở SQL. Trả 409 là chưa đủ; form
+    phải giữ dữ liệu người dùng vừa nhập, cập nhật version mới và cho gửi lại. Nếu UI xoá trắng form khi
+    xung đột, người dùng sẽ mất công và tưởng hệ thống lỗi.
+  </p>
+  <p>
+    Cuối cùng, một benchmark chỉ có nghĩa khi nêu rõ nó đo gì. Con số p95 0,0039 ms rất đẹp, nhưng nó đo
+    evaluate trong bộ nhớ sau khi cache đã warm — không phải độ trễ end-to-end. Báo cáo kèm phạm vi đo,
+    số mẫu và các điểm chưa đo giúp người đọc tin con số hơn, và giúp tôi biết bước tiếp theo là đo tải
+    thật thay vì tối ưu thêm một hàm đã đủ nhanh.
+  </p>
+
+  <div class="note">
+    <strong>Hướng tiếp theo:</strong> chuyển persistence sang Postgres/Neon khi cần nhiều instance ghi;
+    thêm SSE hoặc pub/sub để giảm TTL lan truyền; bổ sung version history và khôi phục flag; đo p95
+    end-to-end sau cold start với lưu lượng tổng hợp.
+  </div>
+
+  <p class="small" style="margin-top:18pt">
+    HTK Feature Flags · Case study · HTK 0396241674 · 11/11/2026 · Next.js 15, React 19, TypeScript,
+    PGlite, Vercel Blob, Vitest.
+  </p>
+</section>
+
+</body>
+</html>

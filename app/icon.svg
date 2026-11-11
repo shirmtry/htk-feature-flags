@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="HTK Feature Flags">
+  <rect width="64" height="64" rx="14" fill="#0b1220"/>
+  <path d="M20 12v40" stroke="#38bdf8" stroke-width="5" stroke-linecap="round"/>
+  <path d="M23 17h24l-6 8 6 8H23z" fill="#38bdf8" opacity="0.9"/>
+  <circle cx="20" cy="12" r="3" fill="#e0f2fe"/>
+</svg>
